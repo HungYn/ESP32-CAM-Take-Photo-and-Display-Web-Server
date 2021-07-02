@@ -41,7 +41,7 @@ boolean takeNewPhoto = false;
 #define FILE_PHOTO "/photo.jpg"
 
 //mg996r 馬達
-#define SERVO_1      15  //將servo物件連接到 pin 14
+#define SERVO_1      15  //將servo物件連接到 pin 15
 Servo servoN1;
 Servo servoN2;
 Servo servo1;            // 建立一個 servo 物件，最多可建立 12個 servo
