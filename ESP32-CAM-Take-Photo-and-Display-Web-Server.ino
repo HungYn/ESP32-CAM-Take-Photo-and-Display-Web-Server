@@ -9,6 +9,8 @@
 
   The above copyright notice and this permission notice shall be included in all
   copies or substantial portions of the Software.
+  #include <Servo.h>   https://github.com/RoboticsBrno/ServoESP32
+  #include <ESPAsyncWebServer.h> https://github.com/sidoh/path_variable_handlers
 *********/
 
 #include "WiFi.h"
@@ -24,12 +26,11 @@
 #include <StringArray.h>
 #include <SPIFFS.h>
 #include <FS.h>
-#include <ESP32Servo.h>
+#include <Servo.h>
 
 // Replace with your network credentials
 const char* ssid = "live3";            //要改
 const char* password = "XXXXXX";  //要改
-int angle = 40;           //轉角度     //要改
 String myLineNotifyToken = "XXXXX";    //要改 Line Notify Token，You can refer this post to get Line token：https://t.ly/LZwKn
 
 // Create AsyncWebServer object on port 80
@@ -41,11 +42,10 @@ boolean takeNewPhoto = false;
 #define FILE_PHOTO "/photo.jpg"
 
 //mg996r 馬達
-#define SERVO_1      15  //將servo物件連接到 pin 15
-Servo servoN1;
-Servo servoN2;
-Servo servo1;            // 建立一個 servo 物件，最多可建立 12個 servo
+static const int servoPin = 15;  //將servo物件連接到 pin 15
+Servo servo1;
 int servo1Pos = 10;       // 設定 Servo 起始位置的變數不要設0
+int angle = 40;           //轉角度     //要改
 
 // OV2640 camera module pins (CAMERA_MODEL_AI_THINKER)
 #define PWDN_GPIO_NUM     32
@@ -68,6 +68,7 @@ int servo1Pos = 10;       // 設定 Servo 起始位置的變數不要設0
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE HTML><html>
 <head>
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body { text-align:center; }
@@ -80,9 +81,9 @@ const char index_html[] PROGMEM = R"rawliteral(
     <h2>ESP32-CAM Last Photo</h2>
     <p>It might take more than 5 seconds to capture a photo.</p>
     <p>
-      <button onclick="rotatePhoto();">ROTATE</button>
-      <button onclick="capturePhoto()">CAPTURE PHOTO</button>
-      <button onclick="location.reload();">REFRESH PAGE</button>
+      <button onclick="rotatePhoto();">旋轉</button>
+      <button onclick="capturePhoto()">按鈕</button>
+      <button onclick="location.reload();">重新載入</button>
     </p>
   </div>
   <div><img src="saved-photo" id="photo"></div>
@@ -93,7 +94,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     var xhr = new XMLHttpRequest();
     xhr.open('GET', "/capture", true);
     xhr.send();  
-    setTimeout("location.reload();",1000 ); 
+    setTimeout("location.reload();",4000 ); 
     
   }
   function rotatePhoto() {
@@ -181,6 +182,7 @@ String sendImage2LineNotify(String msg) {  //傳LINE
     }
     client_tcp.stop();
     esp_camera_fb_return(fb);//清除緩衝區
+        ledcWrite(4, 0); //關閉閃光亮度0
     return Feedback;
   }
   else {
@@ -259,17 +261,13 @@ void setup() {
   sensor_t * s = esp_camera_sensor_get();
   s->set_framesize(s, FRAMESIZE_VGA);  // VGA|CIF|QVGA|HQVGA|QQVGA   ( UXGA? SXGA? XGA? SVGA? )
 
-  //Flash
+  //Flash閃光燈
   ledcAttachPin(4, 4);
   ledcSetup(4, 5000, 8);
 
   //mg996r 馬達
-  servoN1.attach(2, 500, 2400);
-  servoN2.attach(13, 500, 2400);
-  servo1.setPeriodHertz(50);    // standard 50 hz servo
-  servo1.attach(SERVO_1, 500, 2400); // using SG90,MG996R servo min/max of 500us and 2400us  , for MG995 large servo, use 1000us and 2000us,
-
-  servo1.write(servo1Pos);
+  servo1.attach(servoPin, 3, 0, 180); //腳15,channel 3, 最小角度,最大角度
+  servo1.write(servo1Pos);  //初始位子角度10
 
   // Route for root / web page
   server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
@@ -292,33 +290,32 @@ void setup() {
 
 void loop() {
   if (takeNewPhoto) {
-       ledcWrite(4, 10);
+       ledcWrite(4, 10);//打開閃光亮度10
     delay(200);
 
     //mg996r 馬達
     if (servo1Pos <= 170) {
       servo1Pos += angle;
       servo1.write(servo1Pos);
-      delay(500);
+      delay(2000);
       servo1Pos -= angle;
       servo1.write(servo1Pos);
     }
     Serial.println(servo1Pos);
-    Serial.println("Down");
-      delay(1000);
+    Serial.println("CAPTURE PHOTO");
+
 
       
-//    capturePhotoSaveSpiffs();
+    capturePhotoSaveSpiffs();  //網頁上顯示圖片
 
     // line
     Serial.println("starting to Line");
     String payload = sendImage2LineNotify("There is someone coming....");
     Serial.println(payload);
-    delay(10000);
+    delay(4000);
 
     takeNewPhoto = false;
-    delay(1000);
-    ledcWrite(4, 0);
+
   }
   delay(1);
 }
